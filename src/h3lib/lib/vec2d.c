@@ -56,6 +56,23 @@ void _v2dIntersect(const Vec2d *p0, const Vec2d *p1, const Vec2d *p2,
 }
 
 /**
+ * Calculates the direction of a point relative to a line.
+ *
+ * @param p0 The first endpoint of the line.
+ * @param p1 The second endpoint of the line.
+ * @param q  The point
+ * @return -1 if q is clockwise from the line
+ * @return  0 if q is collinear
+ * @return  1 if q is conter-clockwise from the line
+ */
+int _v2dOrient(const Vec2d *p0, const Vec2d *p1, const Vec2d *q) {
+    double detleft = (p0->x - q->x) * (p1->y - q->y);
+    double detright = (p1->x - q->x) * (p0->y - q->y);
+    double det = detleft - detright;
+    return det == 0 ? 0 : (det > 0 ? 1 : -1);
+}
+
+/**
  * Whether two 2D vectors are almost equal, within some threshold
  * @param v1 First vector to compare
  * @param v2 Second vector to compare

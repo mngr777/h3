@@ -44,6 +44,10 @@
 void bboxesFromGeoPolygon(const GeoPolygon *polygon, BBox *bboxes);
 bool pointInsidePolygon(const GeoPolygon *geoPolygon, const BBox *bboxes,
                         const LatLng *coord);
+bool geoLoopInsidePolygon(const GeoPolygon *geoPolygon, const BBox *bboxes,
+                          const GeoLoop *loop);
+bool geoLoopIntersectsPolygon(const GeoPolygon *geoPolygon, const BBox *bboxes,
+                              const GeoLoop *loop);
 
 // The following functions are created via macro in polygonAlgos.h,
 // so their signatures are documented here:
@@ -65,6 +69,18 @@ void bboxFromGeoLoop(const GeoLoop *loop, BBox *bbox);
  */
 bool pointInsideGeoLoop(const GeoLoop *loop, const BBox *bbox,
                         const LatLng *coord);
+
+/**
+ * Determines if segment intersects any segment in the loop.
+ *
+ * @param loop   The loop to check
+ * @param bbox   The bbox for the loop being tested
+ * @param p1 The first endpoint of the segment
+ * @param p2 The second endpoint of the segment
+ * @return Whether the segment intersects the loop
+ */
+bool segmentIntersectsGeoLoop(const GeoLoop *loop, const BBox *bbox,
+                              const LatLng *p1, const LatLng *p2);
 
 /**
  * Whether the winding order of a given GeoLoop is clockwise

@@ -155,6 +155,231 @@ SUITE(polygon) {
             "does not contain outside point to the east of the antimeridian");
     }
 
+    TEST(segmentIntersectsGeoLoop) {
+        GeoLoop geoloop = {.numVerts = 6, .verts = sfVerts};
+
+        LatLng inside1 = {0.659, -2.136};
+        LatLng inside2 = {0.659, -2.138};
+        LatLng outside1 = {0.661, -2.139};
+        LatLng outside2 = {0.660, -2.135};
+
+        BBox bbox;
+        bboxFromGeoLoop(&geoloop, &bbox);
+
+        t_assert(
+            segmentIntersectsGeoLoop(&geoloop, &bbox, &inside1, &outside1),
+            "segment with endpoints inside and outside the loop intersects");
+        t_assert(
+            !segmentIntersectsGeoLoop(&geoloop, &bbox, &inside1, &inside2),
+            "segment with both enpoints inside the loop does not intersect");
+        t_assert(
+            !segmentIntersectsGeoLoop(&geoloop, &bbox, &outside1, &outside2),
+            "segment with both endpoints outside the loop does not intersect");
+    }
+
+    TEST(segmentIntersectsGeoLoopVertexMatch) {
+        GeoLoop geoloop = {.numVerts = 6, .verts = sfVerts};
+        LatLng outside = {0.660, -2.135};
+
+        BBox bbox;
+        bboxFromGeoLoop(&geoloop, &bbox);
+
+        t_assert(
+            segmentIntersectsGeoLoop(&geoloop, &bbox, &sfVerts[0], &outside),
+            "segment with endpoint matching loop vertex intersects");
+    }
+
+    TEST(segmentIntersectsGeoLoopEdgeTouch) {
+        LatLng verts[] = {{0.0, 0.0}, {0.0, 1.0}, {1.0, 1.0}};
+        GeoLoop geoloop = {.numVerts = 3, .verts = verts};
+
+        LatLng onEdge = {0.5, 0.5};
+        LatLng collinear = {1.01, 1.01};
+        LatLng outside = {1.0, 0.0};
+
+        BBox bbox;
+        bboxFromGeoLoop(&geoloop, &bbox);
+
+        t_assert(segmentIntersectsGeoLoop(&geoloop, &bbox, &onEdge, &outside),
+                 "segments touching loop edge intersects");
+        t_assert(
+            !segmentIntersectsGeoLoop(&geoloop, &bbox, &collinear, &outside),
+            "segment endpoint collinear with loop edge but does not intersect");
+    }
+
+    TEST(segmentIntersectsGeoLoopVertexTouch) {
+        LatLng verts[] = {{0.0, 0.0}, {0.0, 1.0}, {1.0, 1.0}};
+        GeoLoop geoloop = {.numVerts = 3, .verts = verts};
+
+        LatLng point1 = {1.5, 0.5};
+        LatLng point2 = {0.5, 1.5};
+        LatLng point3 = {2.0, 0.0};
+
+        BBox bbox;
+        bboxFromGeoLoop(&geoloop, &bbox);
+
+        t_assert(segmentIntersectsGeoLoop(&geoloop, &bbox, &point1, &point2),
+                 "segment cointaining loop vertex intersects");
+        t_assert(
+            !segmentIntersectsGeoLoop(&geoloop, &bbox, &point1, &point3),
+            "loop has point collinear with the segment but does not intersect");
+    }
+
+    TEST(geoLoopInsidePolygon) {
+        LatLng verts[] = {{0.0, 0.0}, {0.0, 1.0}, {1.0, 1.0}, {1.0, 0.0}};
+        GeoLoop geoloop = {.numVerts = 4, .verts = verts};
+        GeoPolygon polygon = {.geoloop = geoloop, .numHoles = 0};
+
+        BBox *bboxes = calloc(sizeof(BBox), 1);
+        bboxesFromGeoPolygon(&polygon, bboxes);
+
+        LatLng vertsInside[] = {
+            {0.25, 0.25}, {0.25, 0.75}, {0.75, 0.75}, {0.75, 0.25}};
+        GeoLoop inside = {.numVerts = 4, .verts = vertsInside};
+
+        LatLng vertsOutside[] = {
+            {1.1, 1.1}, {1.1, 1.2}, {1.2, 1.2}, {1.2, 1.1}};
+        GeoLoop outside = {.numVerts = 4, .verts = vertsOutside};
+
+        LatLng vertsInterects[] = {
+            {0.5, 0.5}, {0.5, 1.5}, {1.5, 1.5}, {1.5, 0.5}};
+        GeoLoop intersects = {.numVerts = 4, .verts = vertsInterects};
+
+        t_assert(geoLoopInsidePolygon(&polygon, bboxes, &inside),
+                 "Loop inside polygon");
+        t_assert(!geoLoopInsidePolygon(&polygon, bboxes, &outside),
+                 "Loop outside polygon");
+        t_assert(!geoLoopInsidePolygon(&polygon, bboxes, &intersects),
+                 "Loop intersects but not inside polygon");
+
+        free(bboxes);
+    }
+
+    TEST(geoLoopInsidePolygonWithHole) {
+        LatLng verts[] = {{0.0, 0.0}, {0.0, 1.0}, {1.0, 1.0}, {1.0, 0.0}};
+        LatLng holeVerts[] = {{0.4, 0.4}, {0.4, 0.6}, {0.6, 0.6}, {0.6, 0.4}};
+        GeoLoop geoloop = {.numVerts = 4, .verts = verts};
+        GeoLoop holeGeoLoop = {.numVerts = 4, .verts = holeVerts};
+        GeoPolygon polygon = {
+            .geoloop = geoloop, .numHoles = 1, .holes = &holeGeoLoop};
+
+        BBox *bboxes = calloc(sizeof(BBox), 2);
+        bboxesFromGeoPolygon(&polygon, bboxes);
+
+        LatLng vertsAroundHole[] = {
+            {0.25, 0.25}, {0.25, 0.75}, {0.75, 0.75}, {0.75, 0.25}};
+        GeoLoop aroundHole = {.numVerts = 4, .verts = vertsAroundHole};
+
+        LatLng vertsInHole[] = {
+            {0.45, 0.45}, {0.45, 0.55}, {0.55, 0.55}, {0.55, 0.45}};
+        GeoLoop inHole = {.numVerts = 4, .verts = vertsInHole};
+
+        LatLng vertsIntersectsHole[] = {
+            {0.3, 0.45}, {0.3, 0.55}, {0.7, 0.55}, {0.7, 0.45}};
+        GeoLoop intersectsHole = {.numVerts = 4, .verts = vertsIntersectsHole};
+
+        t_assert(!geoLoopInsidePolygon(&polygon, bboxes, &aroundHole),
+                 "Loop around hole is not inside");
+        t_assert(!geoLoopInsidePolygon(&polygon, bboxes, &inHole),
+                 "Loop inside hole");
+        t_assert(!geoLoopInsidePolygon(&polygon, bboxes, &intersectsHole),
+                 "Loop intersects hole");
+
+        free(bboxes);
+    }
+
+    TEST(geoLoopInsidePolygonNonConvex) {
+        LatLng verts[] = {
+            {0.0, 0.0}, {0.0, 1.0}, {0.5, 0.5}, {1.0, 1.0}, {1.0, 0.0}};
+        GeoLoop geoloop = {.numVerts = 5, .verts = verts};
+        GeoPolygon polygon = {.geoloop = geoloop, .numHoles = 0};
+
+        LatLng vertsIntersects[] = {
+            {0.1, 0.3}, {0.1, 0.7}, {0.9, 0.7}, {0.9, 0.3}};
+        GeoLoop intersects = {.numVerts = 4, .verts = vertsIntersects};
+
+        BBox *bboxes = calloc(sizeof(BBox), 1);
+
+        t_assert(
+            !geoLoopInsidePolygon(&polygon, bboxes, &intersects),
+            "All loop points inside polygon, but loop intersects outer shell");
+
+        free(bboxes);
+    }
+
+    TEST(geoLoopIntersectsPolygon) {
+        LatLng verts[] = {{0.0, 0.0}, {0.0, 1.0}, {1.0, 1.0}, {1.0, 0.0}};
+        GeoLoop geoloop = {.numVerts = 4, .verts = verts};
+        GeoPolygon polygon = {.geoloop = geoloop, .numHoles = 0};
+
+        BBox *bboxes = calloc(sizeof(BBox), 1);
+        bboxesFromGeoPolygon(&polygon, bboxes);
+
+        LatLng vertsInside[] = {
+            {0.25, 0.25}, {0.25, 0.75}, {0.75, 0.75}, {0.75, 0.25}};
+        GeoLoop inside = {.numVerts = 4, .verts = vertsInside};
+
+        LatLng vertsOutside[] = {
+            {1.1, 1.1}, {1.1, 1.2}, {1.2, 1.2}, {1.2, 1.1}};
+        GeoLoop outside = {.numVerts = 4, .verts = vertsOutside};
+
+        LatLng vertsInterects[] = {
+            {0.5, 0.5}, {0.5, 1.5}, {1.5, 1.5}, {1.5, 0.5}};
+        GeoLoop intersects = {.numVerts = 4, .verts = vertsInterects};
+
+        LatLng vertsIntersectsNoPointsInside[] = {
+            {-0.1, 0.3}, {-0.1, 0.7}, {1.1, 0.7}, {1.1, 0.3}};
+        GeoLoop intersectsNoPointsInside = {
+            .numVerts = 4, .verts = vertsIntersectsNoPointsInside};
+
+        t_assert(geoLoopIntersectsPolygon(&polygon, bboxes, &inside),
+                 "Loop inside polygon");
+        t_assert(!geoLoopIntersectsPolygon(&polygon, bboxes, &outside),
+                 "Loop outside polygon");
+        t_assert(geoLoopIntersectsPolygon(&polygon, bboxes, &intersects),
+                 "Loop intersects polygon");
+        t_assert(geoLoopIntersectsPolygon(&polygon, bboxes,
+                                          &intersectsNoPointsInside),
+                 "Loop intersects polygon no points inside");
+
+        free(bboxes);
+    }
+
+    TEST(geoLoopIntersectsPolygonWithHoles) {
+        LatLng verts[] = {{0.0, 0.0}, {0.0, 1.0}, {1.0, 1.0}, {1.0, 0.0}};
+        LatLng holeVerts1[] = {{0.1, 0.1}, {0.1, 0.4}, {0.4, 0.4}, {0.4, 0.1}};
+        LatLng holeVerts2[] = {{0.1, 0.6}, {0.1, 0.9}, {0.4, 0.9}, {0.4, 0.6}};
+        GeoLoop geoloop = {.numVerts = 4, .verts = verts};
+        GeoLoop holes[] = {{.numVerts = 4, .verts = holeVerts1},
+                           {.numVerts = 4, .verts = holeVerts2}};
+        GeoPolygon polygon = {
+            .geoloop = geoloop, .numHoles = 2, .holes = holes};
+
+        BBox *bboxes = calloc(sizeof(BBox), 3);
+        bboxesFromGeoPolygon(&polygon, bboxes);
+
+        LatLng vertsAroundHole[] = {
+            {0.05, 0.05}, {0.05, 0.45}, {0.45, 0.45}, {0.45, 0.05}};
+        GeoLoop aroundHole = {.numVerts = 4, .verts = vertsAroundHole};
+
+        LatLng vertsInHole[] = {
+            {0.15, 0.15}, {0.15, 0.35}, {0.35, 0.35}, {0.35, 0.15}};
+        GeoLoop inHole = {.numVerts = 4, .verts = vertsInHole};
+
+        LatLng vertsInHoles[] = {
+            {0.15, 0.15}, {0.15, 0.65}, {0.35, 0.65}, {0.35, 0.15}};
+        GeoLoop inHoles = {.numVerts = 4, .verts = vertsInHoles};
+
+        t_assert(geoLoopIntersectsPolygon(&polygon, bboxes, &aroundHole),
+                 "Loop around hole intersects");
+        t_assert(!geoLoopIntersectsPolygon(&polygon, bboxes, &inHole),
+                 "Loop in hole does not intersect");
+        t_assert(geoLoopIntersectsPolygon(&polygon, bboxes, &inHoles),
+                 "Loop with vertices in two holes intersects");
+
+        free(bboxes);
+    }
+
     TEST(pointInsideLinkedGeoLoop) {
         LatLng somewhere = {1, 2};
         LatLng inside = {0.659, -2.136};

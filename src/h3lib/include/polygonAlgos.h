@@ -32,6 +32,7 @@
 #include "latLng.h"
 #include "linkedGeo.h"
 #include "polygon.h"
+#include "vec2d.h"
 
 #ifndef TYPE
 #error "TYPE must be defined before including this header"
@@ -137,6 +138,127 @@ bool GENERIC_LOOP_ALGO(pointInside)(const TYPE *loop, const BBox *bbox,
     }
 
     return contains;
+}
+
+/**
+ * Determines if segment intersects any segment in the loop.
+ *
+ * @param loop The loop to check
+ * @param bbox The bbox for the loop being tested
+ * @param p1 The first endpoint of the segment
+ * @param p2 The second endpoint of the segment
+ * @return Whether the segment intersects the loop
+ */
+bool GENERIC_LOOP_ALGO(segmentIntersects)(const TYPE *loop, const BBox *bbox,
+                                          const LatLng *p0, const LatLng *p1) {
+    if (IS_EMPTY(loop)) {
+        return false;
+    }
+
+    // fail fast if the segment cannot possibly interect the bounding box
+    if ((p0->lat > bbox->north && p1->lat > bbox->north) ||
+        (p0->lng > bbox->east && p1->lng > bbox->east) ||
+        (p0->lat < bbox->south && p1->lat < bbox->south) ||
+        (p0->lng < bbox->west && p1->lng < bbox->west)) {
+        return false;
+    }
+
+    bool isTransmeridian =
+        bboxIsTransmeridian(bbox) || fabs(p0->lng - p1->lng) > M_PI;
+
+    Vec2d v0, v1;
+    v0.x = NORMALIZE_LNG(p0->lng, isTransmeridian);
+    v0.y = p0->lat;
+    v1.x = NORMALIZE_LNG(p1->lng, isTransmeridian);
+    v1.y = p1->lat;
+
+    double xmin = fmin(v0.x, v1.x);
+    double xmax = fmax(v0.x, v1.x);
+    double ymin = fmin(v0.y, v1.y);
+    double ymax = fmax(v0.y, v1.y);
+
+    int oa = 0;
+    int ob = 0;
+    bool first = true;
+    bool reused = false;
+
+    LatLng a;
+    LatLng b;
+
+    INIT_ITERATION;
+
+    while (true) {
+        ITERATE(loop, a, b);
+
+        Vec2d va;
+        Vec2d vb;
+        va.x = NORMALIZE_LNG(a.lng, isTransmeridian);
+        va.y = a.lat;
+        vb.x = NORMALIZE_LNG(b.lng, isTransmeridian);
+        vb.y = b.lat;
+
+        // Loop segment bounds
+        double xminAb = fmin(va.x, vb.x);
+        double xmaxAb = fmax(va.x, vb.x);
+        double yminAb = fmin(va.y, vb.y);
+        double ymaxAb = fmax(va.y, vb.y);
+
+        // Check if bounding boxes of two segments intersect
+        if (xmax < xminAb || xmaxAb < xmin || ymax < yminAb || ymaxAb < ymin) {
+            first = false;
+            reused = false;
+            continue;
+        }
+
+        // Check for matching points
+        if (first) {
+            if (geoAlmostEqualThreshold(p0, &a, DBL_EPSILON) ||
+                geoAlmostEqualThreshold(p0, &b, DBL_EPSILON)) {
+                return true;
+            }
+        }
+        if (geoAlmostEqualThreshold(p1, &a, DBL_EPSILON) ||
+            geoAlmostEqualThreshold(p1, &b, DBL_EPSILON)) {
+            return true;
+        }
+
+        // Check orientation of loop points to (p0, p1)
+        if (!reused) {
+            oa = _v2dOrient(&v0, &v1, &va);
+            if (oa == 0 && xmin <= va.x && va.x <= xmax && ymin <= va.y &&
+                va.y <= ymax) {
+                return true;
+            }
+        }
+        ob = _v2dOrient(&v0, &v1, &vb);
+        if (ob == 0 && xmin <= vb.x && vb.x <= xmax && ymin <= vb.y &&
+            vb.y <= ymax) {
+            return true;
+        }
+
+        // Check orientation of segment points to (a, b)
+        int o0 = _v2dOrient(&va, &vb, &v0);
+        if (o0 == 0 && xminAb <= v0.x && v0.x <= xmaxAb && yminAb <= v0.y &&
+            v0.y <= ymaxAb) {
+            return true;
+        }
+        int o1 = _v2dOrient(&va, &vb, &v1);
+        if (o1 == 0 && xminAb <= v1.x && v1.x <= xmaxAb && yminAb <= v1.y &&
+            v1.y <= ymaxAb) {
+            return true;
+        }
+
+        if (oa * ob == -1 && o0 * o1 == -1) {
+            // True intersection
+            return true;
+        }
+
+        // Reuse second loop point orientation
+        oa = ob;
+        reused = true;
+    }
+
+    return false;
 }
 
 /**

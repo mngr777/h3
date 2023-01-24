@@ -35,6 +35,7 @@ typedef struct {
 double _v2dMag(const Vec2d *v);
 void _v2dIntersect(const Vec2d *p0, const Vec2d *p1, const Vec2d *p2,
                    const Vec2d *p3, Vec2d *inter);
+int _v2dOrient(const Vec2d *p0, const Vec2d *p1, const Vec2d *q);
 bool _v2dAlmostEquals(const Vec2d *p0, const Vec2d *p1);
 
 #endif

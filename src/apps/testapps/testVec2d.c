@@ -18,6 +18,7 @@
 #include <math.h>
 #include <stdlib.h>
 
+#include "latLng.h"
 #include "test.h"
 #include "vec2d.h"
 
@@ -45,6 +46,37 @@ SUITE(Vec2d) {
                  "X coord as expected");
         t_assert(fabs(intersection.y - expectedY) < DBL_EPSILON,
                  "Y coord as expected");
+    }
+
+    TEST(_v2dOrient) {
+        double halfEps = EPSILON_RAD / 2;
+        Vec2d v1 = {1.0, 1.0};
+        Vec2d v2 = {2.0, 3.0};
+        Vec2d v3 = {v1.x - halfEps, v1.y + halfEps};
+        Vec2d q1 = {3.0, 1.0};
+        Vec2d q2 = {0.0, 3.0};
+        Vec2d q3 = {1.5, 2.0};
+        Vec2d q4 = {2.5, 4.0};
+        Vec2d q5 = {v2.x + halfEps, v2.y - halfEps};
+        Vec2d q6 = {v3.x - halfEps, v3.y - halfEps};
+        Vec2d q7 = {v3.x + halfEps, v3.y + halfEps};
+
+        t_assert(_v2dOrient(&v1, &v2, &q1) == -1, "point is CW");
+        t_assert(_v2dOrient(&v2, &v1, &q1) == 1,
+                 "point is CCW (swapped endpoints)");
+        t_assert(_v2dOrient(&v1, &v2, &q2) == 1, "point is CCW");
+        t_assert(_v2dOrient(&v2, &v1, &q2) == -1,
+                 "point is CW (swapped endpoints)");
+        t_assert(_v2dOrient(&v1, &v2, &q3) == 0, "middle point is collinear");
+        t_assert(_v2dOrient(&v2, &v1, &q3) == 0,
+                 "middle point is collinear (swapped endpoints)");
+        t_assert(_v2dOrient(&v1, &v2, &q4) == 0, "point is collinear");
+        t_assert(_v2dOrient(&v2, &v1, &q4) == 0,
+                 "point is collinear (swapped endpoints)");
+        t_assert(_v2dOrient(&v1, &v2, &q5) == -1,
+                 "point is CW (close to endpoint)");
+        t_assert(_v2dOrient(&v1, &v3, &q6) == 1, "point is CCW (short line)");
+        t_assert(_v2dOrient(&v1, &v3, &q7) == -1, "point is CW (short line)");
     }
 
     TEST(_v2dAlmostEquals) {
